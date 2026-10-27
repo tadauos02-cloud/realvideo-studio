@@ -1,0 +1,6 @@
+{
+  "name": "RealVideo Studio",
+  "description": "Ultra-realistic AI video generation desktop app powered by Google Gemini Veo for Windows 10/11.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
