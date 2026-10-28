@@ -83,7 +83,8 @@ export default function App() {
   const hasAnyKey = Boolean(
     (settings.universalApiKeys && settings.universalApiKeys.length > 0) ||
     settings.apiKey ||
-    (settings.apiKeys && settings.apiKeys.length > 0)
+    (settings.apiKeys && settings.apiKeys.length > 0) ||
+    Boolean(settings.videoProvidersJson?.trim())
   );
 
   // Real-time enhanced prompt computation
@@ -180,7 +181,7 @@ export default function App() {
 
       try {
         if (!isMounted) return;
-        const response = await fetch('/api/gemini/generate-video', {
+        const response = await fetch('/api/universal/generate-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: abortController.signal,
@@ -188,6 +189,7 @@ export default function App() {
             apiKey: settings.universalApiKeys?.[0] || settings.apiKey || '',
             apiKeys: settings.universalApiKeys || settings.apiKeys || [],
             universalApiKeys: settings.universalApiKeys || [],
+            providersJson: settings.videoProvidersJson || '',
             prompt: itemToProcess.prompt,
             enhancedPrompt: enhancePrompt(itemToProcess.prompt, realism),
             negativePrompt,
