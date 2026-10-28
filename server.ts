@@ -101,14 +101,22 @@ app.post('/api/gemini/test-key', async (req: Request, res: Response) => {
         { headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' }, timeout: 15000 }
       );
       results.push({
+        nodeNumber: results.length + 1,
         maskedKey: key.length > 10 ? key.slice(0, 6) + '...' + key.slice(-4) : '••••',
         status: response.status >= 200 && response.status < 300 ? 'Connected' : 'Failed',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/interactions',
+        headers: { 'x-goog-api-key': '[REDACTED]', 'Content-Type': 'application/json' },
+        payloadFormat: 'Gemini Interactions API',
         provider: 'Google Gemini API',
       });
     } catch (error: any) {
       results.push({
+        nodeNumber: results.length + 1,
         maskedKey: key.length > 10 ? key.slice(0, 6) + '...' + key.slice(-4) : '••••',
         status: 'Failed',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/interactions',
+        headers: { 'x-goog-api-key': '[REDACTED]', 'Content-Type': 'application/json' },
+        payloadFormat: 'Gemini Interactions API',
         error: error?.response?.data?.error?.message || 'Key check failed. Confirm the key and API access.',
         provider: 'Google Gemini API',
       });
@@ -144,6 +152,7 @@ app.post('/api/gemini/generate-video', async (req: Request, res: Response) => {
         {
           model: generationModel,
           input: finalPrompt,
+          background: true,
           store: false,
           video_config: {
             task: 'text_to_video',
