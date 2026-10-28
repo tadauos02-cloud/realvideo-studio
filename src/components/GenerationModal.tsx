@@ -92,10 +92,14 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
                 </span>
               </div>
               <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 transition-all duration-300 rounded-full"
-                  style={{ width: `${Math.min(100, Math.max(2, progress.percent))}%` }}
-                />
+                {progress.stage === 'submitting' ? (
+                  <div className="h-full w-1/3 bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 rounded-full animate-pulse" />
+                ) : (
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 transition-all duration-300 rounded-full"
+                    style={{ width: `${Math.min(100, Math.max(2, progress.percent))}%` }}
+                  />
+                )}
               </div>
 
               {/* Telemetry info strip */}
