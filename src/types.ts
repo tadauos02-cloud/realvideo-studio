@@ -70,7 +70,8 @@ export interface GenerationProgress {
 export interface AppSettings {
   apiKey: string; // For backward compatibility
   apiKeys: string[]; // List of API keys for fallback/rotation
-  universalApiKeys: string[]; // Universal Unified API Keys Pool (Gemini + Any Alternative AI keys combined)
+  universalApiKeys: string[]; // Legacy Gemini key rotation pool
+  videoProvidersJson?: string; // Ordered provider adapter configurations for universal failover
   replicateApiKey?: string;  // Alternative AI (Replicate) Support (Legacy compatibility)
   lumaApiKey?: string;        // Alternative AI (Luma) Support (Legacy compatibility)
   storageMode: 'local_secure';
