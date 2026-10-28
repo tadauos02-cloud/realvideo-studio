@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import fs from 'fs/promises';
+import os from 'os';
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const port = parseInt(process.env.PORT || '3000', 10);
 
 app.use(express.json({ limit: '50mb' }));
 
-const videoDir = path.join(process.env.TEMP || process.env.TMP || '/tmp', 'realvideo-studio-generated');
+const videoDir = path.join(os.tmpdir(), 'realvideo-studio-generated');
 const generationModel = 'gemini-omni-1.1-flash';
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
