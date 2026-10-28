@@ -20,6 +20,8 @@ export const DEFAULT_REALISM_CONFIG: RealismConfig = {
 export const DEFAULT_SETTINGS: AppSettings = {
   apiKey: '',
   apiKeys: [], // Added support for multiple API keys fallback rotation
+  universalApiKeys: [],
+  videoProvidersJson: '',
   storageMode: 'local_secure',
   saveFolderPath: 'C:\\Users\\User\\Videos\\RealVideo_Studio',
   autoEnhance: true,
