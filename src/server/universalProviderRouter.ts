@@ -28,7 +28,7 @@ const router = Router();
 const videoDir = path.join(os.tmpdir(), 'realvideo-studio-generated');
 const DEFAULT_SUCCESS = ['succeeded', 'success', 'completed', 'complete', 'done'];
 const DEFAULT_FAILURE = ['failed', 'error', 'cancelled', 'canceled', 'rejected'];
-const RETRYABLE = new Set([408, 425, 429, 500, 502, 503, 504]);
+const providerCooldowns = new Map<string, number>();
 
 function getPath(value: any, dottedPath?: string): any {
   if (!dottedPath) return undefined;
@@ -216,6 +216,12 @@ router.post('/generate-video', async (req: Request, res: Response) => {
   }
   const errors: Array<{ provider: string; error: string; status?: number }> = [];
   for (const provider of providers) {
+    const cooldownKey = provider.id + ':' + provider.apiKey.slice(-4);
+    const cooldownUntil = providerCooldowns.get(cooldownKey) || 0;
+    if (cooldownUntil > Date.now()) {
+      errors.push({ provider: provider.name || provider.id, error: 'Provider is temporarily skipped after a recent authentication/rate-limit/server failure.' });
+      continue;
+    }
     try {
       const result = await generateWithProvider(provider, req.body);
       return res.json({
@@ -234,9 +240,10 @@ router.post('/generate-video', async (req: Request, res: Response) => {
       const message = errorMessage(error);
       errors.push({ provider: provider.name || provider.id, error: message, status });
       console.warn('[RealVideo Studio] Provider "' + (provider.name || provider.id) + '" failed: ' + message);
-      // Try the next configured provider on auth/rate-limit/server/network failures and adapter errors.
-      // A 400/422 usually means the same prompt/config will fail elsewhere too, so continue only to allow distinct APIs.
-      if (status && !RETRYABLE.has(status) && status !== 400 && status !== 401 && status !== 403 && status !== 404 && status !== 422) break;
+      // Quarantine credentials/providers that are likely unavailable, but keep trying the rest of the pool.
+      if (status === 401 || status === 403) providerCooldowns.set(cooldownKey, Date.now() + 15 * 60 * 1000);
+      else if (status === 429) providerCooldowns.set(cooldownKey, Date.now() + 60 * 1000);
+      else if (status && status >= 500) providerCooldowns.set(cooldownKey, Date.now() + 30 * 1000);
     }
   }
   return res.status(502).json({
