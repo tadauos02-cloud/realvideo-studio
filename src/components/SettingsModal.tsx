@@ -177,10 +177,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 id="settings-title" className="text-base font-semibold text-slate-100">
-                Universal Unified AI Settings Pool
+                AI Provider Settings
               </h2>
               <p className="text-xs text-slate-400">
-                Configure your single sequential key pool (Gemini & any alternative AI providers)
+                Manage Gemini key rotation and configure multiple independent video APIs below.
               </p>
             </div>
           </div>
@@ -200,7 +200,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-slate-200 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-purple-400" />
-                <span>Universal AI Keys Pool (Unified Sequence)</span>
+                <span>Gemini API Keys (legacy key rotation)</span>
                 <span className="text-xs text-purple-400 font-normal">
                   ({universalKeysList.length} keys configured)
                 </span>
@@ -217,7 +217,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </a>
             </div>
             <p className="text-xs text-slate-400">
-              Add any API keys here in order. The system will rotate through them sequentially. If one encounters rate limits (429) or fails, it automatically shifts to the next key.
+              These keys are tested against Google's Gemini endpoint only. Do not paste keys from other providers here; configure those in Universal Video API Providers below.
             </p>
 
             {/* Input field to add a new API Key */}
@@ -233,7 +233,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       handleAddKey();
                     }
                   }}
-                  placeholder="Paste any AI API key here (Gemini, Replicate, Custom, etc.)"
+                  placeholder="Paste a Gemini API key"
                   className="w-full bg-slate-950 border border-slate-800 focus:border-purple-500 rounded-lg px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder:text-slate-600 focus:outline-none transition-colors"
                 />
                 <button
@@ -312,12 +312,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {testing ? (
                 <>
                   <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                  <span>Testing Universal Pool...</span>
+                  <span>Testing Gemini keys...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Test Universal Pool</span>
+                  <span>Test Gemini Keys</span>
                 </>
               )}
             </button>
