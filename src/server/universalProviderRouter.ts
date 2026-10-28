@@ -37,6 +37,8 @@ function getPath(value: any, dottedPath?: string): any {
 
 function renderTemplate(value: any, context: Record<string, any>): any {
   if (typeof value === 'string') {
+    const exact = value.match(/^\{\{\s*([\w.]+)\s*\}\}$/);
+    if (exact) return getPath(context, exact[1]) ?? '';
     return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, key) => {
       const result = getPath(context, key);
       return result == null ? '' : String(result);
@@ -80,7 +82,7 @@ function findVideoUrl(value: any, depth = 0): string | undefined {
   if (typeof value !== 'object') return undefined;
   for (const [key, child] of Object.entries(value)) {
     if (typeof child === 'string' && /^https:\/\//i.test(child) &&
-      (/(video|output|download|result|uri|url)/i.test(key) || /\.mp4([?#]|$)/i.test(child))) return child;
+      (/(video|output|download|result|uri)/i.test(key) || /\.mp4([?#]|$)/i.test(child))) return child;
   }
   for (const child of Object.values(value)) {
     const found = findVideoUrl(child, depth + 1);
