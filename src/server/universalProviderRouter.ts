@@ -193,7 +193,7 @@ router.get('/providers/capabilities', (_req: Request, res: Response) => {
 });
 
 router.post('/generate-video', async (req: Request, res: Response) => {
-  const { prompt, providers: rawProviders } = req.body || {};
+  const { prompt, providers: rawProviders, providersJson } = req.body || {};
   if (typeof prompt !== 'string' || !prompt.trim()) {
     return res.status(400).json({ success: false, error: 'Prompt is required.' });
   }
@@ -203,7 +203,12 @@ router.post('/generate-video', async (req: Request, res: Response) => {
   } catch {
     return res.status(500).json({ success: false, error: 'AI_VIDEO_PROVIDERS_JSON is not valid JSON.' });
   }
-  const providers = normalizeProviders(rawProviders?.length ? rawProviders : envProviders);
+  let configuredProviders: unknown = rawProviders;
+  if (typeof providersJson === 'string' && providersJson.trim()) {
+    try { configuredProviders = JSON.parse(providersJson); }
+    catch { return res.status(400).json({ success: false, error: 'Provider configuration must be valid JSON.' }); }
+  }
+  const providers = normalizeProviders(Array.isArray(configuredProviders) && configuredProviders.length ? configuredProviders : envProviders);
   if (!providers.length) {
     return res.status(400).json({ success: false, error: 'No enabled video providers configured. Add provider configurations in Settings or AI_VIDEO_PROVIDERS_JSON.' });
   }
