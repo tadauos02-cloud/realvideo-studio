@@ -2,9 +2,6 @@ import React from 'react';
 import {
   Sparkles,
   Cpu,
-  Layers,
-  Wand2,
-  Video,
   XCircle,
   Timer,
   CheckCircle2,
@@ -21,34 +18,10 @@ interface GenerationModalProps {
 
 const STAGES: { stage: GenerationStage; label: string; icon: any; desc: string }[] = [
   {
-    stage: 'enhancing',
-    label: 'Realism Engine Optimization',
-    icon: Sparkles,
-    desc: 'Injecting dermal micro-pores, natural motion blur & negative anti-CGI filters',
-  },
-  {
     stage: 'submitting',
-    label: 'Connecting to Google Gemini Veo',
+    label: 'Waiting for the video provider',
     icon: Cpu,
-    desc: 'Transmitting payload directly to Google Cloud TPU video cluster',
-  },
-  {
-    stage: 'diffusing',
-    label: 'Multi-Pass Video Diffusion',
-    icon: Layers,
-    desc: 'Synthesizing coherent 3D scene physics, handheld camera shake & sunlight',
-  },
-  {
-    stage: 'temporal_smoothing',
-    label: 'Temporal Smoothing & Micro-Blur',
-    icon: Wand2,
-    desc: 'Interpolating frames, applying 180° shutter blur and natural eye blinks',
-  },
-  {
-    stage: 'upscaling',
-    label: '4K UHD Container Packaging',
-    icon: Video,
-    desc: 'Color science mastering, audio sync and final MP4 encoding',
+    desc: 'The app waits for the provider response. A precise generation percentage is not available.',
   },
 ];
 
@@ -80,10 +53,10 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
             </div>
             <div>
               <h3 id="generation-progress-title" className="text-sm font-semibold text-slate-100">
-                {isError ? 'Generation Alert' : 'Generating Ultra-Realistic Video'}
+                {isError ? 'Generation Alert' : 'Video generation request'}
               </h3>
               <p className="text-xs text-slate-400">
-                {isError ? 'Error encountered during request' : 'Google Gemini Veo Diffusion Engine'}
+                {isError ? 'Error encountered during request' : 'Live provider status'}
               </p>
             </div>
           </div>
@@ -143,7 +116,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
             <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-xs text-rose-200 space-y-2">
               <div className="flex items-center gap-2 font-semibold text-rose-300">
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>Notice from Google Gemini Veo API</span>
+                <span>Video provider response</span>
               </div>
               <p className="leading-relaxed text-slate-300">
                 {progress.error || 'Failed to generate video. Please check your API key in Settings.'}
@@ -154,7 +127,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
           {/* Stages Checklist */}
           <div className="space-y-2.5">
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Diffusion Pipeline Stages
+              Request status
             </h4>
             <div className="space-y-2">
               {STAGES.map((s, idx) => {
