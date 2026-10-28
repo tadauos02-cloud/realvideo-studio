@@ -36,6 +36,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [universalKeysList, setUniversalKeysList] = useState<string[]>(initialKeys);
   const [newKeyInput, setNewKeyInput] = useState('');
   const [showKeys, setShowKeys] = useState(false);
+  const [providerConfigJson, setProviderConfigJson] = useState(settings.videoProvidersJson || '');
 
   const [saveFolder, setSaveFolder] = useState(settings.saveFolderPath);
   const [defaultModel, setDefaultModel] = useState<VeoModel>(settings.defaultModel);
@@ -144,6 +145,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       apiKey: universalKeysList[0] || '',
       apiKeys: universalKeysList,
       universalApiKeys: universalKeysList,
+      videoProvidersJson: providerConfigJson,
       saveFolderPath: saveFolder.trim() || 'C:\\Users\\User\\Videos\\RealVideo_Studio',
       defaultModel,
       defaultAspectRatio: defaultRatio,
@@ -337,6 +339,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>{testResult.message}</span>
             </div>
           )}
+
+          <div className="h-px bg-slate-800" />
+
+          <div className="h-px bg-slate-800" />
+
+          {/* Universal provider adapters: each API gets its own endpoint, auth and JSON schema. */}
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="provider-config-json" className="text-sm font-medium text-slate-200 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400" />
+                <span>Universal Video API Providers (ordered failover)</span>
+              </label>
+              <p className="mt-1 text-xs text-slate-400">
+                Add multiple providers in priority order. Each API needs its own endpoint, authentication, requestTemplate and response paths. A plain API key cannot be used with every provider because API schemas differ.
+              </p>
+            </div>
+            <textarea
+              id="provider-config-json"
+              value={providerConfigJson}
+              onChange={(e) => setProviderConfigJson(e.target.value)}
+              rows={12}
+              spellCheck={false}
+              placeholder={`[
+  {
+    "id": "provider-primary",
+    "name": "Primary Video API",
+    "enabled": true,
+    "createUrl": "https://api.example.com/v1/videos",
+    "apiKey": "PASTE_KEY_HERE",
+    "authHeader": "Authorization",
+    "authPrefix": "Bearer ",
+    "requestTemplate": {
+      "model": "your-video-model",
+      "prompt": "{{prompt}}",
+      "duration": "{{duration}}",
+      "aspect_ratio": "{{aspectRatio}}"
+    },
+    "videoUrlPath": "data.video.url",
+    "operationUrlPath": "data.status_url",
+    "statusPath": "data.status",
+    "successStatuses": ["completed", "succeeded"],
+    "failureStatuses": ["failed", "error"]
+  }
+]`}
+              className="w-full min-h-56 bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-lg px-3.5 py-3 text-xs text-slate-100 font-mono placeholder:text-slate-600 focus:outline-none"
+            />
+            <p className="text-xs text-amber-300/90">
+              Security note: this editor is stored in browser localStorage by the current app. Use a private local machine, never commit keys to GitHub, and prefer server-side environment secrets for shared/production deployments.
+            </p>
+          </div>
 
           <div className="h-px bg-slate-800" />
 
