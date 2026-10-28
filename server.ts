@@ -58,7 +58,7 @@ function findVideoUri(value: any, depth = 0): string | undefined {
   if (typeof value !== 'object') return undefined;
   const type = String(value.type || value.mimeType || value.mime_type || '').toLowerCase();
   const uri = value.uri || value.url || value.videoUri || value.video_uri;
-  if (typeof uri === 'string' && /^https:\\/\\//i.test(uri) &&
+  if (typeof uri === 'string' && /^https:\/\//i.test(uri) &&
       (type.includes('video') || /video|\.mp4([?#]|$)/i.test(uri))) return uri;
   for (const [key, child] of Object.entries(value)) {
     if (['prompt', 'text', 'message', 'model'].includes(key)) continue;
@@ -143,7 +143,7 @@ app.post('/api/gemini/generate-video', async (req: Request, res: Response) => {
   const supportedDuration = Math.max(3, Math.min(10, Number(duration) || 5));
   const requestedResolution = ['360p', '720p', '1080p', '4k'].includes(String(resolution).toLowerCase())
     ? String(resolution).toLowerCase() : '720p';
-  const finalPrompt = [enhancedPrompt || prompt, negativePrompt ? 'Avoid: ' + negativePrompt : ''].filter(Boolean).join('\\n\\n');
+  const finalPrompt = [enhancedPrompt || prompt, negativePrompt ? 'Avoid: ' + negativePrompt : ''].filter(Boolean).join('\n\n');
   let lastError = 'No provider returned a video.';
   for (let index = 0; index < keys.length; index++) {
     const key = keys[index];
