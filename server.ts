@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import fs from 'fs/promises';
 
 dotenv.config();
 
@@ -14,260 +15,220 @@ const port = parseInt(process.env.PORT || '3000', 10);
 
 app.use(express.json({ limit: '50mb' }));
 
-// کیش میپ جو ہر اے آئی کی کا اینڈپوئنٹ، ہیڈرز اور باڈی فارمیٹ یاد رکھے گا
-const keyProfileCache = new Map<string, {
-  endpoint: string;
-  headers: Record<string, string>;
-  formatType: string;
-}>();
+const videoDir = path.join(process.env.TEMP || process.env.TMP || '/tmp', 'realvideo-studio-generated');
+const generationModel = 'gemini-omni-1.1-flash';
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+app.use('/api/videos', express.static(videoDir, {
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+  },
+}));
 
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     app: 'RealVideo Studio',
-    version: '1.0.0',
-    serverKeyConfigured: Boolean(process.env.UNIVERSAL_API_KEYS || process.env.API_KEY),
+    version: '1.1.0',
+    provider: 'Gemini Interactions API',
+    serverKeyConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.UNIVERSAL_API_KEYS || process.env.API_KEY),
   });
 });
 
-// Test Universal Pool: ہینڈشیهک کر کے Endpoint، Headers اور Payload کا تعین اور کیش کرنا
-app.post('/api/gemini/test-key', async (req: Request, res: Response) => {
-  try {
-    const rawKeys = req.body?.universalApiKeys || req.body?.apiKeys || req.body?.apiKey || process.env.UNIVERSAL_API_KEYS || '';
-    let keysList: string[] = [];
-
-    if (Array.isArray(rawKeys)) {
-      keysList = rawKeys.map(k => (typeof k === 'string' ? k.trim() : '')).filter(Boolean);
-    } else if (typeof rawKeys === 'string') {
-      keysList = rawKeys.split(/[\r\n]+/).map(k => k.trim()).filter(Boolean);
-    }
-
-    if (keysList.length === 0) {
-      return res.status(400).json({
-        valid: false,
-        error: 'No API keys provided in the universal pool.',
-      });
-    }
-
-    const testResults: any[] = [];
-
-    for (let index = 0; index < keysList.length; index++) {
-      const key = keysList[index];
-      let success = false;
-      let detectedProfile = {
-        endpoint: '',
-        headers: {} as Record<string, string>,
-        formatType: ''
-      };
-
-      // 1. گوگل جیمنائی کے طور پر ہینڈشیهک ٹیسٹ
-      try {
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
-        const testRes = await axios.post(geminiEndpoint, {
-          contents: [{ parts: [{ text: "ping" }] }]
-        }, { timeout: 10000 });
-
-        if (testRes.status >= 200 && testRes.status < 300) {
-          detectedProfile = {
-            endpoint: geminiEndpoint,
-            headers: { 'Content-Type': 'application/json' },
-            formatType: 'Gemini (Google AI)'
-          };
-          success = true;
-        }
-      } catch (e) {
-        // اگلی کوشش
-      }
-
-      // 2. اوپن اے آئی یا بیئرر ٹوکن فارمیٹ کے طور پر ہینڈشیهک ٹیسٹ
-      if (!success) {
-        try {
-          const openaiEndpoint = 'https://api.openai.com/v1/chat/completions';
-          const testRes = await axios.post(openaiEndpoint, {
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: 'ping' }]
-          }, {
-            headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-            timeout: 10000
-          });
-
-          if (testRes.status >= 200 && testRes.status < 300) {
-            detectedProfile = {
-              endpoint: openaiEndpoint,
-              headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-              formatType: 'OpenAI (Bearer Token)'
-            };
-            success = true;
-          }
-        } catch (e) {
-          // اگلی کوشش
-        }
-      }
-
-      // 3. اگر اوپر دونوں نہ ہوں تو کسٹم / ریپلیکیٹ اسٹائل پروفائل سیٹ کرنا
-      if (!success) {
-        detectedProfile = {
-          endpoint: 'https://api.replicate.com/v1/predictions',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-          formatType: 'Custom / Replicate'
-        };
-      }
-
-      // کیش (Cache) میں محفوظ کرنا
-      keyProfileCache.set(key, {
-        endpoint: detectedProfile.endpoint,
-        headers: detectedProfile.headers,
-        formatType: detectedProfile.formatType
-      });
-
-      // رزلٹ لسٹ میں شامل کرنا تاکہ فرنٹ اینڈ پر یا لاگز میں مکمل تفصیل شو ہو سکے
-      testResults.push({
-        nodeNumber: index + 1,
-        maskedKey: `${key.substring(0, 6)}...${key.substring(key.length - 4)}`,
-        status: 'Handshake Successful & Cached',
-        endpoint: detectedProfile.endpoint,
-        headers: detectedProfile.headers,
-        payloadFormat: detectedProfile.formatType
-      });
-    }
-
-    return res.json({
-      valid: true,
-      message: `Universal AI Pool Handshake Completed Successfully! All nodes analyzed, endpoints mapped, and profiles cached.`,
-      nodes: testResults
-    });
-
-  } catch (err: any) {
-    return res.status(500).json({
-      valid: false,
-      error: `Connection error during handshake: ${err?.message || err}`,
-    });
+function getKeys(body: any): string[] {
+  const values: unknown[] = [];
+  for (const value of [body?.universalApiKeys, body?.apiKeys, body?.apiKey,
+    process.env.GEMINI_API_KEY, process.env.UNIVERSAL_API_KEYS, process.env.API_KEY]) {
+    if (Array.isArray(value)) values.push(...value);
+    else if (typeof value === 'string') values.push(...value.split(/[\\r\\n,]+/));
   }
+  return [...new Set(values.filter((v): v is string => typeof v === 'string').map(v => v.trim()).filter(Boolean))];
+}
+
+function findVideoUri(value: any, depth = 0): string | undefined {
+  if (!value || depth > 12) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findVideoUri(item, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (typeof value !== 'object') return undefined;
+  const type = String(value.type || value.mimeType || value.mime_type || '').toLowerCase();
+  const uri = value.uri || value.url || value.videoUri || value.video_uri;
+  if (typeof uri === 'string' && /^https:\\/\\//i.test(uri) &&
+      (type.includes('video') || /video|\.mp4([?#]|$)/i.test(uri))) return uri;
+  for (const [key, child] of Object.entries(value)) {
+    if (['prompt', 'text', 'message', 'model'].includes(key)) continue;
+    const found = findVideoUri(child, depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function findInlineVideo(value: any, depth = 0): { data: string; mimeType: string } | undefined {
+  if (!value || depth > 12) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findInlineVideo(item, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (typeof value !== 'object') return undefined;
+  const mime = String(value.mimeType || value.mime_type || '').toLowerCase();
+  const data = value.data || value.bytes;
+  if (typeof data === 'string' && mime.startsWith('video/')) return { data, mimeType: mime };
+  for (const [key, child] of Object.entries(value)) {
+    if (['prompt', 'text', 'message', 'model'].includes(key)) continue;
+    const found = findInlineVideo(child, depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+app.post('/api/gemini/test-key', async (req: Request, res: Response) => {
+  const keys = getKeys(req.body);
+  if (!keys.length) return res.status(400).json({ valid: false, error: 'Add a Gemini API key in Settings first.' });
+
+  const results = [];
+  for (const key of keys) {
+    try {
+      const response = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/interactions',
+        { model: generationModel, input: 'Reply with the single word OK.', store: false },
+        { headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' }, timeout: 15000 }
+      );
+      results.push({
+        maskedKey: key.length > 10 ? key.slice(0, 6) + '...' + key.slice(-4) : '••••',
+        status: response.status >= 200 && response.status < 300 ? 'Connected' : 'Failed',
+        provider: 'Google Gemini API',
+      });
+    } catch (error: any) {
+      results.push({
+        maskedKey: key.length > 10 ? key.slice(0, 6) + '...' + key.slice(-4) : '••••',
+        status: 'Failed',
+        error: error?.response?.data?.error?.message || 'Key check failed. Confirm the key and API access.',
+        provider: 'Google Gemini API',
+      });
+    }
+  }
+  const valid = results.some(result => result.status === 'Connected');
+  return res.status(valid ? 200 : 401).json({ valid, message: valid ? 'At least one Gemini key connected successfully.' : 'No Gemini keys passed the connection test.', nodes: results });
 });
 
-// Generate Video: پہلے سے طے شدہ (Cached) پروفائل کو استعمال کرتے ہوئے ریکوئسٹ بھیجنا
 app.post('/api/gemini/generate-video', async (req: Request, res: Response) => {
-  try {
-    const {
-      universalApiKeys,
-      apiKeys: clientKeysArray,
-      apiKey: clientKey,
-      prompt,
-      enhancedPrompt,
-      negativePrompt,
-      model = 'veo-3',
-      aspectRatio = '16:9',
-      duration = 5,
-      resolution = '4k',
-      fps = 30,
-    } = req.body;
-
-    let keysPool: string[] = [];
-
-    if (Array.isArray(universalApiKeys)) {
-      keysPool = [...keysPool, ...universalApiKeys.map(k => (typeof k === 'string' ? k.trim() : '')).filter(Boolean)];
-    }
-    if (Array.isArray(clientKeysArray)) {
-      keysPool = [...keysPool, ...clientKeysArray.map(k => (typeof k === 'string' ? k.trim() : '')).filter(Boolean)];
-    }
-    if (typeof clientKey === 'string' && clientKey.trim()) {
-      keysPool = [...keysPool, ...clientKey.split(/[\r\n]+/).map(k => k.trim()).filter(Boolean)];
-    }
-    if (process.env.UNIVERSAL_API_KEYS && typeof process.env.UNIVERSAL_API_KEYS === 'string') {
-      const envKeys = process.env.UNIVERSAL_API_KEYS.split(/[\r\n]+/).map(k => k.trim()).filter(Boolean);
-      keysPool = [...keysPool, ...envKeys];
-    }
-
-    keysPool = Array.from(new Set(keysPool));
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required.' });
-    }
-
-    if (keysPool.length === 0) {
-      return res.status(400).json({ error: 'No API keys found. Please configure a key in Settings.' });
-    }
-
-    const finalPrompt = enhancedPrompt || prompt;
-    let lastErrorMsg = '';
-
-    for (let i = 0; i < keysPool.length; i++) {
-      const currentApiKey = keysPool[i];
-      console.log(`[RealVideo Studio] Executing request using cached profile for Node #${i + 1}...`);
-
-      try {
-        let profile = keyProfileCache.get(currentApiKey);
-        if (!profile) {
-          profile = {
-            endpoint: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${currentApiKey}`,
-            headers: { 'Content-Type': 'application/json' },
-            formatType: 'Gemini (Google AI)'
-          };
-        }
-
-        let apiBody: any = {};
-
-        if (profile.formatType.includes('OpenAI')) {
-          apiBody = {
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: finalPrompt }]
-          };
-        } else if (profile.formatType.includes('Gemini')) {
-          apiBody = {
-            contents: [{ parts: [{ text: finalPrompt }] }]
-          };
-        } else {
-          apiBody = {
-            version: "latest",
-            input: { prompt: finalPrompt, negative_prompt: negativePrompt, aspect_ratio: aspectRatio, duration }
-          };
-        }
-
-        const apiResponse = await axios.post(profile.endpoint, apiBody, {
-          headers: profile.headers,
-          timeout: 60000,
-        });
-
-        if (apiResponse.status >= 200 && apiResponse.status < 300) {
-          console.log(`[RealVideo Studio] Success using cached profile Node #${i + 1}`);
-          const responseData = apiResponse.data;
-          
-          const videoUrl = responseData?.output || 
-                           responseData?.videoUrl || 
-                           responseData?.choices?.[0]?.message?.content || 
-                           responseData?.candidates?.[0]?.content?.parts?.[0]?.text || 
-                           "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28y";
-
-          return res.json({
-            success: true,
-            videoUrl: typeof videoUrl === 'string' && videoUrl.startsWith('http') ? videoUrl : "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28y",
-            prompt,
-            enhancedPrompt: finalPrompt,
-            negativePrompt,
-            model,
-            aspectRatio,
-            duration,
-            resolution: '4K UHD',
-            fps,
-            fileSizeMb: 24.5,
-            provider: `Cached Node #${i + 1} (${profile.formatType})`,
-          });
-        }
-      } catch (nodeError: any) {
-        lastErrorMsg = nodeError?.response?.data?.error?.message || nodeError?.message || String(nodeError);
-        console.warn(`[RealVideo Studio] Node #${i + 1} failed: ${lastErrorMsg}`);
-        continue;
-      }
-    }
-
-    return res.status(429).json({
-      error: `All configured nodes failed. Last error: ${lastErrorMsg}`,
-      fallbackAvailable: false,
-    });
-
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Internal generation error' });
+  const keys = getKeys(req.body);
+  const {
+    prompt, enhancedPrompt, negativePrompt, aspectRatio = '16:9',
+    duration = 5, resolution = '720p',
+  } = req.body || {};
+  if (typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ success: false, error: 'Prompt is required.' });
   }
+  if (!keys.length) {
+    return res.status(400).json({ success: false, error: 'No Gemini API key configured. Add a valid Gemini API key in Settings.' });
+  }
+  const ratio = aspectRatio === '9:16' ? '9:16' : '16:9';
+  const supportedDuration = Math.max(3, Math.min(10, Number(duration) || 5));
+  const requestedResolution = ['360p', '720p', '1080p', '4k'].includes(String(resolution).toLowerCase())
+    ? String(resolution).toLowerCase() : '720p';
+  const finalPrompt = [enhancedPrompt || prompt, negativePrompt ? 'Avoid: ' + negativePrompt : ''].filter(Boolean).join('\\n\\n');
+  let lastError = 'No provider returned a video.';
+  for (let index = 0; index < keys.length; index++) {
+    const key = keys[index];
+    try {
+      const createResponse = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/interactions',
+        {
+          model: generationModel,
+          input: finalPrompt,
+          store: false,
+          video_config: {
+            task: 'text_to_video',
+            response_format: {
+              type: 'video',
+              delivery: 'uri',
+              aspect_ratio: ratio,
+              duration: `${supportedDuration}s`,
+              resolution: requestedResolution,
+            },
+          },
+        },
+        {
+          headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+          timeout: 120000,
+        }
+      );
+
+      let operation = createResponse.data;
+      const operationId = operation?.id || operation?.name;
+      const deadline = Date.now() + 6 * 60 * 1000;
+      while (operation?.status && ['in_progress', 'running', 'queued', 'pending'].includes(String(operation.status).toLowerCase())) {
+        if (!operationId || Date.now() >= deadline) throw new Error('Video generation timed out before the provider returned a completed video.');
+        await sleep(5000);
+        const pollResponse = await axios.get(
+          `https://generativelanguage.googleapis.com/v1beta/interactions/${encodeURIComponent(operationId)}`,
+          { headers: { 'x-goog-api-key': key }, timeout: 30000 }
+        );
+        operation = pollResponse.data;
+      }
+
+      if (operation?.status && ['failed', 'cancelled', 'incomplete'].includes(String(operation.status).toLowerCase())) {
+        throw new Error(operation?.error?.message || operation?.message || `Provider ended with status: ${operation.status}`);
+      }
+
+      const videoUri = findVideoUri(operation);
+      const inlineVideo = findInlineVideo(operation);
+      let bytes: Buffer;
+      let mimeType = 'video/mp4';
+      if (videoUri) {
+        const download = await axios.get(videoUri, {
+          headers: { 'x-goog-api-key': key },
+          responseType: 'arraybuffer',
+          timeout: 120000,
+        });
+        bytes = Buffer.from(download.data);
+        mimeType = download.headers['content-type'] || mimeType;
+      } else if (inlineVideo) {
+        bytes = Buffer.from(inlineVideo.data, 'base64');
+        mimeType = inlineVideo.mimeType;
+      } else {
+        throw new Error('The API request completed but did not return a video file. No placeholder video was created.');
+      }
+
+      if (!bytes.length || bytes.length < 1000) {
+        throw new Error('The provider response was too small to be a valid video file.');
+      }
+      await fs.mkdir(videoDir, { recursive: true });
+      const fileName = `video-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`;
+      await fs.writeFile(path.join(videoDir, fileName), bytes);
+      const stat = await fs.stat(path.join(videoDir, fileName));
+      return res.json({
+        success: true,
+        videoUrl: `/api/videos/${fileName}`,
+        prompt,
+        enhancedPrompt: finalPrompt,
+        negativePrompt,
+        model: generationModel,
+        aspectRatio: ratio,
+        duration: supportedDuration,
+        resolution: requestedResolution,
+        fps: 24,
+        fileSizeMb: Number((stat.size / (1024 * 1024)).toFixed(2)),
+        mimeType,
+        provider: 'Google Gemini Omni Flash',
+      });
+    } catch (error: any) {
+      lastError = error?.response?.data?.error?.message || error?.message || String(error);
+      console.warn(`[RealVideo Studio] Gemini key node ${index + 1} failed: ${lastError}`);
+    }
+  }
+  return res.status(502).json({
+    success: false,
+    error: `Video generation failed for all configured Gemini keys. ${lastError}`,
+  });
 });
 
 async function startServer() {
