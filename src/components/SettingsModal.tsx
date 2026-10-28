@@ -342,8 +342,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div className="h-px bg-slate-800" />
 
-          <div className="h-px bg-slate-800" />
-
           {/* Universal provider adapters: each API gets its own endpoint, auth and JSON schema. */}
           <div className="space-y-3">
             <div>
