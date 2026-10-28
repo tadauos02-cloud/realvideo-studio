@@ -64,7 +64,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
           <div className="flex items-center gap-2">
             {!isError && (
               <span className="text-xs font-mono font-bold text-blue-400 px-2 py-0.5 rounded bg-blue-950 border border-blue-800">
-                {Math.round(progress.percent)}%
+                {progress.stage === 'submitting' ? 'Waiting' : progress.stage === 'completed' ? 'Done' : `${Math.round(progress.percent)}%`}
               </span>
             )}
           </div>
@@ -86,9 +86,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>{progress.message}</span>
                 <span className="font-mono text-slate-300">
-                  {progress.currentFrame && progress.totalFrames
-                    ? `Frame ${progress.currentFrame}/${progress.totalFrames}`
-                    : `${Math.round(progress.percent)}%`}
+                  {progress.stage === 'submitting' ? 'Provider processing' : progress.currentFrame && progress.totalFrames ? `Frame ${progress.currentFrame}/${progress.totalFrames}` : `${Math.round(progress.percent)}%`}
                 </span>
               </div>
               <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
@@ -108,9 +106,7 @@ export const GenerationModal: React.FC<GenerationModalProps> = ({
                   <Timer className="w-3 h-3 text-slate-400" />
                   <span>Elapsed: {formatTime(progress.elapsedSec)}</span>
                 </span>
-                <span>
-                  Est. Remaining: ~{formatTime(Math.max(0, progress.remainingSec))}
-                </span>
+                <span>Provider ETA: not available</span>
               </div>
             </div>
           )}
