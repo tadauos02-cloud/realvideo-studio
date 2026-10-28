@@ -242,15 +242,6 @@ export default function App() {
           prev.map((it) => (it.id === itemToProcess.id ? { ...it, status: 'completed' } : it))
         );
 
-        setProgress({
-          stage: 'completed',
-          percent: 100,
-          message: 'Provider returned a video file successfully.',
-          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-          remainingSec: 0,
-          currentFrame: itemToProcess.duration * 30,
-          totalFrames: itemToProcess.duration * 30,
-        });
       } catch (err: any) {
         if (err.name === 'AbortError') {
           setVideoQueue((prev) =>
