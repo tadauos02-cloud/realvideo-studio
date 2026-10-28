@@ -166,130 +166,73 @@ export default function App() {
         prev.map((it) => (it.id === itemToProcess.id ? { ...it, status: 'generating' } : it))
       );
 
-      const estimatedTotalSec = estimateGenerationSeconds(itemToProcess.model, itemToProcess.duration);
-
       setProgress({
-        stage: 'enhancing',
-        percent: 8,
-        message: `Queue Item [${nextItemIndex + 1}]: Compiling Realism Engine micro-textures...`,
+        stage: 'submitting',
+        percent: 5,
+        message: 'Request sent to the video provider. Waiting for the actual video result…',
         elapsedSec: 0,
-        remainingSec: estimatedTotalSec,
-        currentFrame: 1,
-        totalFrames: itemToProcess.duration * 30,
+        remainingSec: 0,
       });
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
-      const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+      const startedAt = Date.now();
 
       try {
         if (!isMounted) return;
-        await sleep(700);
-
-        setProgress({
-          stage: 'enhancing',
-          percent: 18,
-          message: 'Realism Engine: Injecting skin pores, handheld shake & negative anti-CGI filters...',
-          elapsedSec: 1,
-          remainingSec: 4,
-          currentFrame: 15,
-          totalFrames: itemToProcess.duration * 30,
-        });
-        await sleep(700);
-
-        setProgress({
-          stage: 'submitting',
-          percent: 42,
-          message: 'Connecting to Universal AI Pool & TPU video clusters...',
-          elapsedSec: 2,
-          remainingSec: 3,
-          currentFrame: 45,
-          totalFrames: itemToProcess.duration * 30,
-        });
-
-        let apiResult: any = null;
-        try {
-          const response = await fetch('/api/gemini/generate-video', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: abortController.signal,
-            body: JSON.stringify({
-              apiKey: settings.universalApiKeys?.[0] || settings.apiKey || '',
-              apiKeys: settings.universalApiKeys || settings.apiKeys || [],
-              universalApiKeys: settings.universalApiKeys || [],
-              prompt: itemToProcess.prompt,
-              enhancedPrompt: enhancePrompt(itemToProcess.prompt, realism),
-              negativePrompt,
-              model: itemToProcess.model,
-              aspectRatio: itemToProcess.aspectRatio,
-              duration: itemToProcess.duration,
-              resolution: realism.resolution,
-              fps: realism.fps,
-            }),
-          });
-          apiResult = await response.json();
-        } catch (networkErr) {
-          console.warn('Network call note:', networkErr);
-        }
-
-        await sleep(800);
-
-        setProgress({
-          stage: 'diffusing',
-          percent: 68,
-          message: 'Synthesizing coherent physical lighting, raytraced shadows & subtle breathing...',
-          elapsedSec: 3,
-          remainingSec: 2,
-          currentFrame: Math.floor(itemToProcess.duration * 30 * 0.7),
-          totalFrames: itemToProcess.duration * 30,
-        });
-        await sleep(800);
-
-        setProgress({
-          stage: 'temporal_smoothing',
-          percent: 88,
-          message: 'Eliminating jitter: applying 180° natural shutter blur and micro-saccades...',
-          elapsedSec: 4,
-          remainingSec: 1,
-          currentFrame: Math.floor(itemToProcess.duration * 30 * 0.9),
-          totalFrames: itemToProcess.duration * 30,
-        });
-        await sleep(700);
-
-        setProgress({
-          stage: 'upscaling',
-          percent: 96,
-          message: 'Packaging 4K UHD 30fps MP4 container...',
-          elapsedSec: 5,
-          remainingSec: 0,
-          currentFrame: itemToProcess.duration * 30,
-          totalFrames: itemToProcess.duration * 30,
-        });
-        await sleep(600);
-
-        let newRecord: VideoRecord;
-
-        if (apiResult?.success && apiResult?.videoUrl) {
-          newRecord = {
-            id: `veo-${Date.now()}`,
-            title: itemToProcess.prompt.slice(0, 42),
+        const response = await fetch('/api/gemini/generate-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abortController.signal,
+          body: JSON.stringify({
+            apiKey: settings.universalApiKeys?.[0] || settings.apiKey || '',
+            apiKeys: settings.universalApiKeys || settings.apiKeys || [],
+            universalApiKeys: settings.universalApiKeys || [],
             prompt: itemToProcess.prompt,
             enhancedPrompt: enhancePrompt(itemToProcess.prompt, realism),
             negativePrompt,
-            videoUrl: apiResult.videoUrl,
-            thumbnailUrl: apiResult.thumbnailUrl || '/src/assets/images/artisan_portrait_1793049171467.jpg',
+            model: itemToProcess.model,
             aspectRatio: itemToProcess.aspectRatio,
             duration: itemToProcess.duration,
-            resolution: '4K UHD',
-            fps: 30,
-            model: itemToProcess.model,
-            createdAt: Date.now(),
-            fileSizeMb: apiResult.fileSizeMb || 42.5,
-            isSample: false,
-          };
-        } else {
-          throw new Error(apiResult?.error || 'Failed to generate video from AI providers pool. Please verify your keys.');
+            resolution: realism.resolution,
+            fps: realism.fps,
+          }),
+        });
+
+        const apiResult = await response.json().catch(() => ({}));
+        if (!response.ok || apiResult?.success !== true || typeof apiResult?.videoUrl !== 'string') {
+          throw new Error(apiResult?.error || `Video provider request failed (HTTP ${response.status}).`);
         }
+
+        const videoUrl = apiResult.videoUrl.startsWith('http')
+          ? apiResult.videoUrl
+          : new URL(apiResult.videoUrl, window.location.origin).toString();
+
+        const newRecord: VideoRecord = {
+          id: `veo-${Date.now()}`,
+          title: itemToProcess.prompt.slice(0, 42),
+          prompt: itemToProcess.prompt,
+          enhancedPrompt: apiResult.enhancedPrompt || enhancePrompt(itemToProcess.prompt, realism),
+          negativePrompt,
+          videoUrl,
+          thumbnailUrl: undefined,
+          aspectRatio: apiResult.aspectRatio || itemToProcess.aspectRatio,
+          duration: Number(apiResult.duration) || itemToProcess.duration,
+          resolution: apiResult.resolution || 'Provider default',
+          fps: Number(apiResult.fps) || 24,
+          model: itemToProcess.model,
+          createdAt: Date.now(),
+          fileSizeMb: Number(apiResult.fileSizeMb) || 0,
+          isSample: false,
+        };
+
+        setProgress({
+          stage: 'completed',
+          percent: 100,
+          message: 'Provider returned a video file successfully.',
+          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+          remainingSec: 0,
+        });
 
         const updated = addVideoToHistory(newRecord);
         setHistory(updated);
@@ -302,8 +245,8 @@ export default function App() {
         setProgress({
           stage: 'completed',
           percent: 100,
-          message: 'Queue task complete! 4K video ready.',
-          elapsedSec: 5,
+          message: 'Provider returned a video file successfully.',
+          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
           remainingSec: 0,
           currentFrame: itemToProcess.duration * 30,
           totalFrames: itemToProcess.duration * 30,
