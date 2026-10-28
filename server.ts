@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import fs from 'fs/promises';
 import os from 'os';
+import universalProviderRouter from './src/server/universalProviderRouter';
 
 dotenv.config();
 
@@ -15,6 +16,9 @@ const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
 app.use(express.json({ limit: '50mb' }));
+
+// Provider-agnostic API router: ordered failover across independently configured video APIs.
+app.use('/api/universal', universalProviderRouter);
 
 const videoDir = path.join(os.tmpdir(), 'realvideo-studio-generated');
 const generationModel = 'gemini-omni-1.1-flash';

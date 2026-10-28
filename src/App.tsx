@@ -83,7 +83,8 @@ export default function App() {
   const hasAnyKey = Boolean(
     (settings.universalApiKeys && settings.universalApiKeys.length > 0) ||
     settings.apiKey ||
-    (settings.apiKeys && settings.apiKeys.length > 0)
+    (settings.apiKeys && settings.apiKeys.length > 0) ||
+    Boolean(settings.videoProvidersJson?.trim())
   );
 
   // Real-time enhanced prompt computation
@@ -180,7 +181,7 @@ export default function App() {
 
       try {
         if (!isMounted) return;
-        const response = await fetch('/api/gemini/generate-video', {
+        let response = await fetch('/api/universal/generate-video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: abortController.signal,
@@ -188,6 +189,7 @@ export default function App() {
             apiKey: settings.universalApiKeys?.[0] || settings.apiKey || '',
             apiKeys: settings.universalApiKeys || settings.apiKeys || [],
             universalApiKeys: settings.universalApiKeys || [],
+            providersJson: settings.videoProvidersJson || '',
             prompt: itemToProcess.prompt,
             enhancedPrompt: enhancePrompt(itemToProcess.prompt, realism),
             negativePrompt,
@@ -199,7 +201,34 @@ export default function App() {
           }),
         });
 
-        const apiResult = await response.json().catch(() => ({}));
+        let apiResult = await response.json().catch(() => ({}));
+
+        // If no custom provider JSON is configured, preserve compatibility with the built-in Gemini key pool.
+        // The universal route is attempted first so server-only AI_VIDEO_PROVIDERS_JSON can take precedence.
+        if (!response.ok && !settings.videoProvidersJson?.trim() &&
+          ((settings.universalApiKeys && settings.universalApiKeys.length > 0) || settings.apiKey || (settings.apiKeys && settings.apiKeys.length > 0))) {
+          const legacyResponse = await fetch('/api/gemini/generate-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: abortController.signal,
+            body: JSON.stringify({
+              apiKey: settings.universalApiKeys?.[0] || settings.apiKey || '',
+              apiKeys: settings.universalApiKeys || settings.apiKeys || [],
+              universalApiKeys: settings.universalApiKeys || [],
+              prompt: itemToProcess.prompt,
+              enhancedPrompt: enhancePrompt(itemToProcess.prompt, realism),
+              negativePrompt,
+              model: itemToProcess.model,
+              aspectRatio: itemToProcess.aspectRatio,
+              duration: itemToProcess.duration,
+              resolution: realism.resolution,
+              fps: realism.fps,
+            }),
+          });
+          response = legacyResponse;
+          apiResult = await legacyResponse.json().catch(() => ({}));
+        }
+
         if (!response.ok || apiResult?.success !== true || typeof apiResult?.videoUrl !== 'string') {
           throw new Error(apiResult?.error || `Video provider request failed (HTTP ${response.status}).`);
         }
